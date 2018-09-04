@@ -2,17 +2,23 @@
 
 namespace Disbot;
 
-/*
- * True if the verbose flag was set
+/********* FLAGS
+ * VERBOSE - Log everything to the terminal?
+ * TOKEN - What is the token?
+ * Client ID - What is the client ID?
  */
-$verbose = false;
-$token = '';
+
+global $SETTINGS;
+
+$SETTINGS = new Settings();
 
 array_shift($argv);
 switch(strtolower($argv[0])){
+
     case "start":
         if(in_array("--verbose", $argv))
-            $verbose = true;
+            define('VERBOSE', true);
+        else define('VERBOSE', false);
         break;
 
     case "server":
@@ -20,17 +26,16 @@ switch(strtolower($argv[0])){
             print("Error: Missing arguments\n");
         }
         $arg = strtolower($argv[1]);
-        if($arg == "add"){
 
-        }
-        else if($arg == "remove"){
-
-        }
-        else if($arg == "list"){
-
-        }
-        else {
-            printf("Error: Unknown argument '%s'\n", $arg);
+        switch($arg){
+	        case "add":
+	        	break;
+	        case "remove":
+	        	break;
+	        case "list":
+	        	break;
+	        default:
+	        	die("Error: Unknown argument '$arg''\n");
         }
         break;
 

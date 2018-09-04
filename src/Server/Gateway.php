@@ -29,7 +29,7 @@ class Gateway {
 	 * @param $permissions int The bot's permissions
 	 */
 	public function __construct($client_id, $token, $permissions) {
-		$this->client_id = $client_id;
+		$this->client_id = VERBOSE;
 		$this->token = $token;
 		$this->permissions = $permissions;
 	}
