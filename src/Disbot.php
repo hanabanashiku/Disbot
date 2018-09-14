@@ -19,6 +19,7 @@ switch(strtolower($argv[0])){
         if(in_array("--verbose", $argv))
             define('VERBOSE', true);
         else define('VERBOSE', false);
+        define('TOKEN', $SETTINGS->getToken());
         break;
 
     case "server":
