@@ -1,6 +1,7 @@
 <?php
 
 namespace Disbot;
+require '../vendor/autoload.php';
 
 /********* FLAGS
  * VERBOSE - Log everything to the terminal?
@@ -8,9 +9,8 @@ namespace Disbot;
  * Client ID - What is the client ID?
  */
 
-global $SETTINGS;
-
-$SETTINGS = new Settings();
+define("LOGGER_DIR", realpath(__DIR__ . DIRECTORY_SEPARATOR . '..' . 'logs'));
+$settings = new Settings();
 
 array_shift($argv);
 switch(strtolower($argv[0])){
@@ -19,7 +19,8 @@ switch(strtolower($argv[0])){
         if(in_array("--verbose", $argv))
             define('VERBOSE', true);
         else define('VERBOSE', false);
-        define('TOKEN', $SETTINGS->getToken());
+        define('TOKEN', $settings->getToken());
+        define('CLIENT_ID', $settings->getClientId());
         break;
 
     case "server":

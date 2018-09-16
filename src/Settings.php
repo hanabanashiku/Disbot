@@ -10,16 +10,16 @@ class Settings{
 	private $client_id;
 
 	function __construct() {
-		$dir = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'data';
-		$path = $dir . DIRECTORY_SEPARATOR . Settings::FNAME;
+		$this->dir = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'data';
+		$path = $this->dir . DIRECTORY_SEPARATOR . Settings::FNAME;
 
 		if(!file_exists($path))
 			return;
 
 		$settings = parse_ini_file($path, true);
 
-		$token = $settings["credentials"]["token"];
-		$client_id = $settings["credentials"]["client_id"];
+		$this->token = $settings["credentials"]["token"];
+		$this->client_id = $settings["credentials"]["client_id"];
 	}
 
 	function __destruct(){

@@ -1,0 +1,15 @@
+{
+  "name": "Disbot",
+  "description": "A simple Discord bot",
+  "minimum-stability": "stable",
+  "license": "proprietary",
+  "authors": [
+    {
+      "name": "Michael MacLean",
+      "email": "elemaster96@aol.com"
+    }
+  ],
+  "require": {
+    "katzgrau/klogger": "dev-master"
+  }
+}

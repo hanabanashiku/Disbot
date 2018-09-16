@@ -15,10 +15,25 @@ use Disbot\Server\Gateway;
  * @param $message string The JSON-encoded message.
  * @param Gateway $gateway The gateway.
  */
-function ReceiveSocketMessage($message, Gateway $gateway){
-	$message = json_decode($message);
+function receiveSocketMessage($message, Gateway $gateway){
+	$message = json_decode($message, true);
+
+	// We are receiving a Hello
+	if(array_key_exists("heartbeat_interval", $message)){
+		receiveHello($message["heartbeat_interval"], $gateway);
+		return;
+	}
+
+	// We are receiving a Ready
+	if(array_key_exists("v", $message) && array_key_exists("user", $message) && array_key_exists("session_id", $message))
+		receiveReady($message, $gateway);
 
 	switch($message["op"]){
 
 	}
+}
+
+function receiveHello($interval, Gateway $gateway){
+	$gateway->setHeartbeatInterval($interval);
+	$gateway->identify();
 }

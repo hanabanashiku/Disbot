@@ -10,6 +10,8 @@ namespace Disbot\Server;
 
 use Disbot\Handlers;
 use Disbot;
+use Katzgrau\KLogger\Logger;
+
 
 class Gateway {
 	const VERSION = 6; // The Discord gateway version to request
@@ -18,24 +20,32 @@ class Gateway {
 	const GATEWAY_URL = 'https://discordapp.com/gateway/bot'; // The URL used to fetch the Gateway address
 	const MAX_LENGTH = 4096; // Max number of bytes that can be sent
 
+	// connection information
 	private $address;
 	private $socket;
 	private $token; // bot's token
 	private $client_id; // the bot's client ID
 	private $permissions;
-	private $interval; // the interval between heartbeats
-	private $s = null; // the last heartbeat number
-	private $timer = 0; // time since last heartbeat
+
+	// state information
+	private $ready;     // if the payload is in a ready state
+	private $interval;  // the interval between heartbeats, in seconds
+	private $s = null;  // the last heartbeat number
+	private $timer = 0; // timestamp of last heartbeat
+	private $user;      // The bot itself
+
+	private $logger;
 
 	/**
-	 * @param $client_id int The client ID assigned by Discord
-	 * @param $token int The bot token assigned by Discord
 	 * @param $permissions int The bot's permissions
 	 */
-	public function __construct($client_id, $token, $permissions) {
-		$this->client_id = VERBOSE;
-		$this->token = $token;
+	public function __construct($permissions) {
+		$this->client_id = CLIENT_ID;
+		$this->token = TOKEN;
 		$this->permissions = $permissions;
+		$this->ready = false;
+		$this->logger = new Logger(LOGGER_DIR);
+		$this->logger->debug("Gateway constructed.");
 	}
 
 	/**
@@ -52,9 +62,13 @@ class Gateway {
 	private function getGatewayUrl() {
 		$ch = curl_init($this::GATEWAY_URL);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, "Authorization: Bot {$this->token}");
-		$response = json_decode(curl_exec($ch));
-		if ($response["url"] == null) die("Could not retrieve Gateway socket URL");
+		$response = json_decode(curl_exec($ch), true);
+		if ($response["url"] == null) {
+			$this->logger->error('GATEWAY_URL', array(curl_error($ch), $response));
+			die("Could not retrieve Gateway socket URL");
+		}
 		$this->address = $response["url"] . "?v={$this::VERSION}&encoding={$this::ENCODING}";
+		$this->logger->info("GATEWAY_URL", $this->address);
 	}
 
 	/**
@@ -62,29 +76,57 @@ class Gateway {
 	 */
 	public function listen() {
 		if (is_null($this->token)) {
+			$this->logger->error("NULL_TOKEN");
 			print("To start the server, a valid token must be supplied. Get the token by running `disbot auth.` See help for more information\n");
 			exit(2);
 		}
 
-		$this->getGatewayUrl();
+		// initiate the connection
+		$this->connect();
 
-		$this->socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP) or die("Socket could not be created\n");
-		socket_bind($this->socket, '127.0.0.1');
-		socket_connect($this->socket, gethostbyname($this->address), 443);
+		$this->logger->info("BEGIN_LISTEN");
 
 		// lets start our main loop
-		while (true) {
+		while(true) {
+			// we need to send a heartbeat
+			if(time() >= $this->timer + $this->interval)
+				$this->sendHeartbeat();
+
 			$data = socket_read($this->socket, $this::MAX_LENGTH);
-			if ($data === false) {
+			if(VERBOSE) $this->logger->debug("SOCKET_RECEIVE", $data);
+			/*if ($data === false) {
 				$err = socket_last_error($this->socket);
+				socket_close($this->socket);
 				die("Connection closed! [$err]");
-			}
-			Handlers\ReceiveSocketMessage($data, $this);
+			}*/
+			Handlers\receiveSocketMessage($data, $this);
 		}
 	}
 
-	private function identify(){
-		if(is_null($this->socket)) return false;
+	private function connect(){
+		// fetch our URL from the server (can change.. don't cache!)
+		$this->getGatewayUrl();
+
+		// create and connect to our socket
+		$this->socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+		if(!$this->socket){
+			$this->logger->error("CREATE_SOCKET", socket_strerror(socket_last_error($this->socket)));
+			die("Could not connect to socket!\n");
+		}
+		socket_bind($this->socket, '127.0.0.1');
+		$res = socket_connect($this->socket, gethostbyname($this->address), 443);
+		if(!$res){
+			$this->logger->error("CONNECT_SOCKET", socket_strerror(socket_last_error($this->socket)));
+			die("Could not connect to socket!\n");
+		}
+		$this->logger->info("CREATE_SOCKET");
+	}
+
+	/**
+	 * Sends an OP2 Identify to the gateway. Should only be called after receiving OP10 Hello.
+	 * @return true On success
+	 */
+	public function identify(){
 		$msg = array(
 			"token" => TOKEN,
 			"properties" => array(
@@ -93,26 +135,17 @@ class Gateway {
 				"device" => "disbot"
 			)
 		);
-		$res = socket_write($this->socket, json_encode($msg));
-		return ($res == false) ? false : true;
+		$this->logger->info("IDENTIFY_SEND");
+		return $this->sendRaw(json_encode($msg));
 	}
 
 	/**
 	 * Send a heartbeat. The heartbeat must be sent every $heartbeatInterval seconds.
+	 * @return true on success
 	 */
 	public function sendHeartbeat() {
-		$this->sendPayload(HEARTBEAT, $this->s);
-	}
-
-	/**
-	 * To be called when the gateway receives a heartbeat ACK or hello
-	 * @param $int integer interval in which to heartbeat
-	 * @param $s integer the last heartbeat number
-	 */
-	public function receiveHeartbeat($int, $s){
-		$this->interval = $int;
-		$this->s = $s;
-		$this->timer = time();
+		$this->timer = time(); // update timestamp
+		return $this->sendPayload(HEARTBEAT, $this->s);
 	}
 
 	/**
@@ -122,14 +155,73 @@ class Gateway {
 	 * @return true on success
 	 */
 	private function sendPayload($op, $payload) {
-		if (is_null($this->socket)) return false;
 		$msg = array(
 			"op" => $op,
 			"d" => $payload
 		);
-		$res = socket_write($this->socket, json_encode($msg));
-		return ($res === false) ? false : true;
+		return $this->sendRaw(json_encode($msg));
 	}
+
+	/**
+	 * Sends a custom request through the socket
+	 * @param string $payload The payload to send
+	 * @return true on success
+	 */
+	private function sendRaw($payload){
+		if(is_null($this->socket)) return false;
+		$res = socket_write($this->socket, $payload);
+		if(!$res){
+			$this->logger->error("SOCKET_SEND", array($payload, socket_strerror(socket_last_error($this->socket))));
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * Used to set the heartbeat interval; should only be called when receiving a OP10 Hello
+	 * @param $int integer The new heartbeat interval, in milliseconds
+	 * @return $this The gateway
+	 */
+	public function setHeartbeatInterval($int){
+		$this->logger->info("HELLO_RECEIVE HEARTBEAT INTERVAL " . $int);
+		$this->interval = ($int / 1000);
+		return $this;
+	}
+
+	/**
+	 * @return User The bot's User information
+	 */
+	public function getUser() {
+		return $this->user;
+	}
+
+	/**
+	 * @param User $user The bot itself
+	 * @return $this The gateway
+	 */
+	public function setUser(User $user){
+		$this->user = $user;
+		return $this;
+	}
+
+	/**
+	 * @param string $s
+	 * @return $this The gateway
+	 */
+	public function setSessionId($s) {
+		$this->s = $s;
+		return $this;
+	}
+
+	/**
+	 * @return Logger The logger instance
+	 */
+	public function getLogger() {
+		return $this->logger;
+	}
+
+
+
 }
 
 /****************************
