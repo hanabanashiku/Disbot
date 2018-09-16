@@ -28,11 +28,12 @@ class Gateway {
 	private $permissions;
 
 	// state information
-	private $ready;     // if the payload is in a ready state
+	private $endSession; // terminate the session?
 	private $interval;  // the interval between heartbeats, in seconds
 	private $s = null;  // the last heartbeat number
 	private $timer = 0; // timestamp of last heartbeat
 	private $user;      // The bot itself
+	private $ack;       // Are we waiting for a heartbeat ACK?
 
 	private $logger;
 
@@ -40,20 +41,32 @@ class Gateway {
 	 * @param $permissions int The bot's permissions
 	 */
 	public function __construct($permissions) {
+		$this->endSession = false;
 		$this->client_id = CLIENT_ID;
 		$this->token = TOKEN;
 		$this->permissions = $permissions;
-		$this->ready = false;
 		$this->logger = new Logger(LOGGER_DIR);
-		$this->logger->debug("Gateway constructed.");
 	}
 
 	/**
-	 * This is the URL used to authenticate the client with Discord
+	 * This is the URL used to authenticate the client with Discord.
+	 * Running this attempts to open the URL in the browser as well.
 	 * @return string The URL the user must navigate to
 	 */
 	public function getAuthUrl() {
-		return $this::OAUTH_URL . "client_id={$this->client_id}&scope=bot&permissions={$this->permissions}";
+		$url = $this::OAUTH_URL . "client_id={$this->client_id}&scope=bot&permissions={$this->permissions}";
+		switch(php_uname('s')){ // Let's attempt to open the url
+			case 'Linux': case 'Unix': // Linux
+				exec('xdg-open ' . $url);
+				break;
+			case 'WIN32':case 'WINNT':case 'Windows': // Windows
+				exec('rundll32 url.dll,FileProtocolHandler ' . $url);
+				break;
+			case 'Darwin': // Max
+				exec('open ' . $url);
+				break;
+		}
+		return $url;
 	}
 
 	/**
@@ -73,6 +86,7 @@ class Gateway {
 
 	/**
 	 * Signals for the client to create a socket and begin communicating with the gateway.
+	 * @return true on successful close, false if the client should resume.
 	 */
 	public function listen() {
 		if (is_null($this->token)) {
@@ -88,17 +102,23 @@ class Gateway {
 
 		// lets start our main loop
 		while(true) {
+			if($this->endSession){
+				socket_close($this->socket);
+				return true;
+			}
+
 			// we need to send a heartbeat
 			if(time() >= $this->timer + $this->interval)
 				$this->sendHeartbeat();
 
+			// the
+			else if($this->ack != false && time() > $this->ack + 2){
+				socket_close($this->socket);
+				return false;
+			}
+
 			$data = socket_read($this->socket, $this::MAX_LENGTH);
 			if(VERBOSE) $this->logger->debug("SOCKET_RECEIVE", $data);
-			/*if ($data === false) {
-				$err = socket_last_error($this->socket);
-				socket_close($this->socket);
-				die("Connection closed! [$err]");
-			}*/
 			Handlers\receiveSocketMessage($data, $this);
 		}
 	}
@@ -145,6 +165,7 @@ class Gateway {
 	 */
 	public function sendHeartbeat() {
 		$this->timer = time(); // update timestamp
+		$this->ack = time();   // waiting for an ACK
 		return $this->sendPayload(HEARTBEAT, $this->s);
 	}
 
@@ -220,7 +241,10 @@ class Gateway {
 		return $this->logger;
 	}
 
-
+	public function setAck($ack){
+		$this->ack = $ack;
+		return $this;
+	}
 
 }
 

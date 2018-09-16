@@ -29,7 +29,9 @@ function receiveSocketMessage($message, Gateway $gateway){
 		receiveReady($message, $gateway);
 
 	switch($message["op"]){
-
+		case HEARTBEAT_ACK:
+			$gateway->setAck(false);
+			break;
 	}
 }
 
