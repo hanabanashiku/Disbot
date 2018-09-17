@@ -8,6 +8,7 @@ class Settings{
 
 	private $token;
 	private $client_id;
+	private $permissions;
 
 	function __construct() {
 		$this->dir = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'data';
@@ -20,6 +21,7 @@ class Settings{
 
 		$this->token = $settings["credentials"]["token"];
 		$this->client_id = $settings["credentials"]["client_id"];
+		$this->permissions = $settings["credentials"]["permissions"];
 	}
 
 	function __destruct(){
@@ -64,6 +66,24 @@ class Settings{
 		$this->client_id = $client_id;
 		return $this;
 	}
+
+	/**
+	 * @return integer bit sequence representing bot permissions
+	 */
+	public function getPermissions() {
+		return $this->permissions;
+	}
+
+	/**
+	 * @param integer $permissions The permissions, in binary
+	 * @return Settings
+	 */
+	public function setPermissions($permissions) {
+		$this->permissions = $permissions;
+		return $this;
+	}
+
+
 
 	private static function ini_to_string($array){
 		$lines = array();

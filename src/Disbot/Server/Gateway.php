@@ -8,8 +8,8 @@
 
 namespace Disbot\Server;
 
+use Disbot\Disbot;
 use Disbot\Handlers;
-use Disbot;
 use Katzgrau\KLogger\Logger;
 
 
@@ -35,17 +35,12 @@ class Gateway {
 	private $user;      // The bot itself
 	private $ack;       // Are we waiting for a heartbeat ACK?
 
-	private $logger;
 
-	/**
-	 * @param $permissions int The bot's permissions
-	 */
-	public function __construct($permissions) {
+	public function __construct() {
 		$this->endSession = false;
-		$this->client_id = CLIENT_ID;
-		$this->token = TOKEN;
-		$this->permissions = $permissions;
-		$this->logger = new Logger(LOGGER_DIR);
+		$this->client_id = Disbot::getSettings()->getClientId();
+		$this->token = Disbot::getSettings()->getToken();
+		$this->permissions = Disbot::getSettings()->getPermissions();
 	}
 
 	/**
@@ -77,11 +72,11 @@ class Gateway {
 		curl_setopt($ch, CURLOPT_HTTPHEADER, "Authorization: Bot {$this->token}");
 		$response = json_decode(curl_exec($ch), true);
 		if ($response["url"] == null) {
-			$this->logger->error('GATEWAY_URL', array(curl_error($ch), $response));
+			Disbot::getLogger()->error('GATEWAY_URL', array(curl_error($ch), $response));
 			die("Could not retrieve Gateway socket URL");
 		}
 		$this->address = $response["url"] . "?v={$this::VERSION}&encoding={$this::ENCODING}";
-		$this->logger->info("GATEWAY_URL", $this->address);
+		Disbot::getLogger()->info("GATEWAY_URL", $this->address);
 	}
 
 	/**
@@ -90,7 +85,7 @@ class Gateway {
 	 */
 	public function listen() {
 		if (is_null($this->token)) {
-			$this->logger->error("NULL_TOKEN");
+			Disbot::getLogger()->error("NULL_TOKEN");
 			print("To start the server, a valid token must be supplied. Get the token by running `disbot auth.` See help for more information\n");
 			exit(2);
 		}
@@ -98,7 +93,7 @@ class Gateway {
 		// initiate the connection
 		$this->connect();
 
-		$this->logger->info("BEGIN_LISTEN");
+		Disbot::getLogger()->info("BEGIN_LISTEN");
 
 		// lets start our main loop
 		while(true) {
@@ -118,9 +113,10 @@ class Gateway {
 			}
 
 			$data = socket_read($this->socket, $this::MAX_LENGTH);
-			if(VERBOSE) $this->logger->debug("SOCKET_RECEIVE", $data);
-			Handlers\receiveSocketMessage($data, $this);
+			if(VERBOSE) Disbot::getLogger()->debug("SOCKET_RECEIVE", $data);
+			Handlers\receiveSocketMessage($data);
 		}
+		return true;
 	}
 
 	private function connect(){
@@ -130,16 +126,16 @@ class Gateway {
 		// create and connect to our socket
 		$this->socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
 		if(!$this->socket){
-			$this->logger->error("CREATE_SOCKET", socket_strerror(socket_last_error($this->socket)));
+			Disbot::getLogger()->error("CREATE_SOCKET", socket_strerror(socket_last_error($this->socket)));
 			die("Could not connect to socket!\n");
 		}
 		socket_bind($this->socket, '127.0.0.1');
 		$res = socket_connect($this->socket, gethostbyname($this->address), 443);
 		if(!$res){
-			$this->logger->error("CONNECT_SOCKET", socket_strerror(socket_last_error($this->socket)));
+			Disbot::getLogger()->error("CONNECT_SOCKET", socket_strerror(socket_last_error($this->socket)));
 			die("Could not connect to socket!\n");
 		}
-		$this->logger->info("CREATE_SOCKET");
+		Disbot::getLogger()->info("CREATE_SOCKET");
 	}
 
 	/**
@@ -155,7 +151,7 @@ class Gateway {
 				"device" => "disbot"
 			)
 		);
-		$this->logger->info("IDENTIFY_SEND");
+		Disbot::getLogger()->info("IDENTIFY_SEND");
 		return $this->sendRaw(json_encode($msg));
 	}
 
@@ -192,7 +188,7 @@ class Gateway {
 		if(is_null($this->socket)) return false;
 		$res = socket_write($this->socket, $payload);
 		if(!$res){
-			$this->logger->error("SOCKET_SEND", array($payload, socket_strerror(socket_last_error($this->socket))));
+			Disbot::getLogger()->error("SOCKET_SEND", array($payload, socket_strerror(socket_last_error($this->socket))));
 			return false;
 		}
 		return true;
@@ -204,7 +200,7 @@ class Gateway {
 	 * @return $this The gateway
 	 */
 	public function setHeartbeatInterval($int){
-		$this->logger->info("HELLO_RECEIVE HEARTBEAT INTERVAL " . $int);
+		Disbot::getLogger()->info("HELLO_RECEIVE HEARTBEAT INTERVAL " . $int);
 		$this->interval = ($int / 1000);
 		return $this;
 	}
@@ -238,7 +234,7 @@ class Gateway {
 	 * @return Logger The logger instance
 	 */
 	public function getLogger() {
-		return $this->logger;
+		return Disbot::getLogger();
 	}
 
 	public function setAck($ack){
