@@ -26,6 +26,7 @@ class Disbot {
 	private static $dms;
 	private static $gateway;
 	private static $users;
+	private static $verbose;
 
 	public static function __callStatic(){
 		if(!self::$init){
@@ -38,7 +39,11 @@ class Disbot {
 		}
 	}
 
-	public static function start(){
+	/**
+	 * @param bool $verbose Set the bot to verbose mode?
+	 */
+	public static function start($verbose = false){
+		self::$verbose = $verbose;
 		if(self::getSettings()->getClientId() == null)
 			die("Error: Please define the client id by using set ClientId");
 		if(self::getSettings()->getToken() == null)
@@ -48,6 +53,11 @@ class Disbot {
 		Disbot::$gateway = new Gateway();
 		self::getGateway()->listen();
 	}
+
+	/**
+	 * @return boolean true if the bot is set to verbose.
+	 */
+	public static function isVerbose() { return self::$verbose; }
 
 	/**
 	 * @return Logger

@@ -113,7 +113,7 @@ class Gateway {
 			}
 
 			$data = socket_read($this->socket, $this::MAX_LENGTH);
-			if(VERBOSE) Disbot::getLogger()->debug("SOCKET_RECEIVE", $data);
+			if(Disbot::isVerbose()) Disbot::getLogger()->debug("SOCKET_RECEIVE", $data);
 			Handlers\receiveSocketMessage($data);
 		}
 		return true;
@@ -144,7 +144,7 @@ class Gateway {
 	 */
 	public function identify(){
 		$msg = array(
-			"token" => TOKEN,
+			"token" => Disbot::getSettings()->getToken(),
 			"properties" => array(
 				"os" => PHP_OS,
 				"browser" => "disbot",
@@ -240,6 +240,13 @@ class Gateway {
 	public function setAck($ack){
 		$this->ack = $ack;
 		return $this;
+	}
+
+	/**
+	 * Signal for the bot to end after the next loop.
+	 */
+	public function endSession(){
+		$this->endSession = true;
 	}
 
 }

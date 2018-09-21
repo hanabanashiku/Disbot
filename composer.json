@@ -10,6 +10,9 @@
     }
   ],
   "require": {
-    "katzgrau/klogger": "dev-master"
+    "katzgrau/klogger": "dev-master",
+    "ext-sockets": "*",
+    "ext-curl": "*",
+    "ext-json": "*"
   }
 }
