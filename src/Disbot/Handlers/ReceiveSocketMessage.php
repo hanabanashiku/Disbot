@@ -17,14 +17,6 @@ use Disbot\Disbot;
 function receiveSocketMessage($message){
 	$message = json_decode($message, true);
 
-	// We are receiving a Ready
-	if(array_key_exists("v", $message) &&
-		array_key_exists("user", $message) && array_key_exists("session_id", $message)){
-		receiveReady($message);
-		return;
-	}
-
-
 	// we received an error code
 	if(array_key_exists("code", $message)){
 		Disbot::getGateway()->getLogger()->error("ERROR_CODE_RECEIVED", $message);

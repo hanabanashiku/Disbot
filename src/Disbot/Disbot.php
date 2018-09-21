@@ -39,7 +39,14 @@ class Disbot {
 	}
 
 	public static function start(){
-		die("Not Implemented");
+		if(self::getSettings()->getClientId() == null)
+			die("Error: Please define the client id by using set ClientId");
+		if(self::getSettings()->getToken() == null)
+			die("Error: Please define the bot token by using set Token");
+
+		// TODO Deal with reconnects
+		Disbot::$gateway = new Gateway();
+		self::getGateway()->listen();
 	}
 
 	/**
