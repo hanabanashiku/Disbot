@@ -8,10 +8,9 @@
 
 namespace Disbot\Server;
 
-
 use Disbot\Disbot;
 
-class GuildMembers implements Collection{
+class GuildMembers implements Collection {
 	private $members;
 
 	/**
@@ -40,14 +39,14 @@ class GuildMembers implements Collection{
 	 * @return bool true if the member exists in the collection.
 	 */
 	public function exists($member){
-		return $this->get($member->getUser()->getId()) == null;
+		return $this->get($member->getUser()->getId()) != null;
 	}
 
 	/**
 	 * @param $member GuildMember The member to add
 	 */
 	public function add($member){
-		if($this->exists($member))
+		if(!$this->exists($member))
 			array_push($this->members, $member);
 	}
 
@@ -55,6 +54,7 @@ class GuildMembers implements Collection{
 	 * Creates a new GuildMember object and adds it to the collection
 	 * @param $member array The JSON information from the GUILD_CREATE event
 	 * @param $guild Guild The guild the member is a part of
+	 * @return GuildMember The GuildMember object.
 	 */
 	public function addFromRaw($member, $guild){
 		$user = Disbot::getUsers()->get($member["user"]["id"]);
@@ -76,6 +76,7 @@ class GuildMembers implements Collection{
 
 		$ret = new GuildMember($user, $nick, $roles, $deaf, $mute);
 		$this->add($ret);
+		return $ret;
 	}
 
 	/**

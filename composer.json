@@ -14,5 +14,10 @@
     "ext-sockets": "*",
     "ext-curl": "*",
     "ext-json": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Disbot\\": "src/Disbot"
+    }
   }
 }

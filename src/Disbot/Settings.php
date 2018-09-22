@@ -28,6 +28,7 @@ class Settings{
 		$settings = array();
 		$settings["credentials"]["token"] = $this->getToken();
 		$settings["credentials"]["client_id"] = $this->getClientId();
+		$settings["credentials"]["permissions"] = $this->getPermissions();
 
 		$out = $this::ini_to_string($settings);
 		$file = fopen($this->path, "w");

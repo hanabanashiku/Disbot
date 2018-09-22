@@ -10,7 +10,7 @@ namespace Disbot;
 
 use Disbot\Server\Channels;
 use Disbot\Server\Gateway;
-//use Disbot\Server\Guild;
+use Disbot\Server\Guilds;
 use Disbot\Server\User;
 use Disbot\Server\Users;
 use Katzgrau\KLogger\Logger;
@@ -28,11 +28,11 @@ class Disbot {
 	private static $users;
 	private static $verbose;
 
-	public static function __callStatic(){
+	public static function __callStatic($method, $args){
 		if(!self::$init){
 			self::$logger = new Logger(LOGGER_DIR);
 			self::$settings = new Settings();
-			self::$guilds = array();
+			self::$guilds = new Guilds();
 			self::$dms = array();
 			self::$users = new Users();
 			self::$init = true;
