@@ -48,8 +48,8 @@ class Gateway {
 	 * Running this attempts to open the URL in the browser as well.
 	 * @return string The URL the user must navigate to
 	 */
-	public function getAuthUrl() {
-		$url = $this::OAUTH_URL . "client_id={$this->client_id}&scope=bot&permissions={$this->permissions}";
+	public static function getAuthUrl() {
+		$url = Gateway::OAUTH_URL . "client_id=".Disbot::getSettings()->getClientId()."&scope=bot&permissions=".Disbot::getSettings()->getPermissions();
 		switch(php_uname('s')){ // Let's attempt to open the url
 			case 'Linux': case 'Unix': // Linux
 				exec('xdg-open ' . $url);
@@ -75,7 +75,7 @@ class Gateway {
 			Disbot::getLogger()->error('GATEWAY_URL', array(curl_error($ch), $response));
 			die("Could not retrieve Gateway socket URL");
 		}
-		$this->address = $response["url"] . "?v={$this::VERSION}&encoding={$this::ENCODING}";
+		$this->address = $response["url"] . "?v=".$this::VERSION."&encoding=".$this::ENCODING;
 		Disbot::getLogger()->info("GATEWAY_URL", $this->address);
 	}
 

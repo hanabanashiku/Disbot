@@ -11,13 +11,17 @@ class Settings{
 	private $permissions;
 
 	function __construct() {
-		$this->dir = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'data';
-		$path = $this->dir . DIRECTORY_SEPARATOR . Settings::FNAME;
+		$this->dir = getcwd() . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "data";
+		$this->path = $this->dir . DIRECTORY_SEPARATOR . Settings::FNAME;
 
-		if(!file_exists($path))
+		if(!realpath($this->dir)){
+			mkdir($this->dir);
+			return;
+		}
+		if(!file_exists($this->path))
 			return;
 
-		$settings = parse_ini_file($path, true);
+		$settings = parse_ini_file($this->path, true);
 
 		$this->token = $settings["credentials"]["token"];
 		$this->client_id = $settings["credentials"]["client_id"];
@@ -92,8 +96,8 @@ class Settings{
 		foreach($array as $key => $val) {
 			if (is_array($val)) {
 				$lines[] = "[$key]";
-				foreach ($val as $subkey => $subval) $res[] = "$subkey = " . (is_numeric($val) ? $subval : '"' . $subval . '"');
-			} else $res[] = "$key = " . (is_numeric($val) ? $val : '"' . $val . '"');
+				foreach ($val as $subkey => $subval) $lines[] = "$subkey = " . (is_numeric($subval) ? $subval : '"' . $subval . '"');
+			} else $lines[] = "$key = " . (is_numeric($val) ? $val : '"' . $val . '"');
 		}
 		return implode(PHP_EOL, $lines);
 	}

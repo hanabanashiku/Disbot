@@ -2,6 +2,7 @@
 
 use Disbot\Disbot;
 use Disbot\Permissions\DiscordPermissions;
+use Disbot\Server\Gateway;
 
 if($argc == 1)
 	die('No option was given upon execution. Please type "disbot help" for more information.');
@@ -29,7 +30,7 @@ switch(strtolower($argv[0])){
 
 function read($length){
 	$f = fopen("php://stdin", "r");
-	$input = fgets($f, $length);
+	$input = fgets($f, $length + 1);
 	fclose($f);
 	$input = rtrim($input);
 	return $input;
@@ -45,12 +46,12 @@ function setup(){
 	Disbot::getSettings()->setToken($token);
 	print("Next, please select the permissions that your bot will request. You may type 'user', 'moderator', 'all', 
 	or type specific permissions, followed by a space. You may type 'disbot help set permissions' for more information
-	 about specific permissions.");
+	 about specific permissions. ");
 	$permissions = read(2048);
 	$permissions = explode(" ", $permissions);
 	setPermissions($permissions);
 	print("Finally, we will need to authenticate your bot. Please visit the following URL (put it in your browser if it does not load)\n");
-	print(Disbot::getGateway()->getAuthUrl() . "\n");
+	print(Gateway::getAuthUrl() . "\n");
 	print("Once you have authorized your bot, the set up will be completed.\n");
 }
 

@@ -15,7 +15,7 @@ use Disbot\Server\User;
 use Disbot\Server\Users;
 use Katzgrau\KLogger\Logger;
 
-define("LOGGER_DIR", realpath(__DIR__ . DIRECTORY_SEPARATOR . '..' . 'logs'));
+//define("LOGGER_DIR", realpath(__DIR__ . DIRECTORY_SEPARATOR . '..' . 'logs'));
 
 class Disbot {
 	private static $init = false;
@@ -28,9 +28,11 @@ class Disbot {
 	private static $users;
 	private static $verbose;
 
-	public static function __callStatic($method, $args){
+	public static function init(){
+		$logger_dir = getcwd() . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'logs';
+
 		if(!self::$init){
-			self::$logger = new Logger(LOGGER_DIR);
+			self::$logger = new Logger($logger_dir);
 			self::$settings = new Settings();
 			self::$guilds = new Guilds();
 			self::$dms = array();
@@ -106,6 +108,6 @@ class Disbot {
 	 */
 	public static function getGateway() { return self::$gateway; }
 
-
-
 }
+
+Disbot::init();
