@@ -17,7 +17,7 @@ class Gateway {
 	const VERSION = 6; // The Discord gateway version to request
 	const ENCODING = 'json';
 	const OAUTH_URL = 'https://discordapp.com/api/oauth2/authorize?'; // the OAuth URL
-	const GATEWAY_URL = 'https://discordapp.com/gateway/bot'; // The URL used to fetch the Gateway address
+	const GATEWAY_URL = 'https://discordapp.com/api/gateway/bot'; // The URL used to fetch the Gateway address
 	const MAX_LENGTH = 4096; // Max number of bytes that can be sent
 
 	// connection information
@@ -69,14 +69,16 @@ class Gateway {
 	 */
 	private function getGatewayUrl() {
 		$ch = curl_init($this::GATEWAY_URL);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, "Authorization: Bot {$this->token}");
+		curl_setopt($ch, CURLOPT_HTTPHEADER, array("Authorization: Bot {$this->token}"));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
 		$response = json_decode(curl_exec($ch), true);
-		if ($response["url"] == null) {
+		if ($response["url"] == null){
 			Disbot::getLogger()->error('GATEWAY_URL', array(curl_error($ch), $response));
 			die("Could not retrieve Gateway socket URL");
 		}
 		$this->address = $response["url"] . "?v=".$this::VERSION."&encoding=".$this::ENCODING;
-		Disbot::getLogger()->info("GATEWAY_URL", $this->address);
+		Disbot::getLogger()->info("GATEWAY_URL", array($this->address));
 	}
 
 	/**
@@ -86,7 +88,7 @@ class Gateway {
 	public function listen() {
 		if (is_null($this->token)) {
 			Disbot::getLogger()->error("NULL_TOKEN");
-			print("To start the server, a valid token must be supplied. Get the token by running `disbot auth.` See help for more information\n");
+			print("To start the server, a valid token must be supplied. Set the token by running `disbot set token.` See help for more information\n");
 			exit(2);
 		}
 
@@ -112,7 +114,7 @@ class Gateway {
 				return false;
 			}
 
-			$data = socket_read($this->socket, $this::MAX_LENGTH);
+			$data = fread($this->socket, $this::MAX_LENGTH);
 			if(Disbot::isVerbose()) Disbot::getLogger()->debug("SOCKET_RECEIVE", $data);
 			Handlers\receiveSocketMessage($data);
 		}
@@ -124,16 +126,10 @@ class Gateway {
 		$this->getGatewayUrl();
 
 		// create and connect to our socket
-		$this->socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+		$this->socket = stream_socket_client($this->address, $errno, $errstr);
 		if(!$this->socket){
-			Disbot::getLogger()->error("CREATE_SOCKET", socket_strerror(socket_last_error($this->socket)));
-			die("Could not connect to socket!\n");
-		}
-		socket_bind($this->socket, '127.0.0.1');
-		$res = socket_connect($this->socket, gethostbyname($this->address), 443);
-		if(!$res){
-			Disbot::getLogger()->error("CONNECT_SOCKET", socket_strerror(socket_last_error($this->socket)));
-			die("Could not connect to socket!\n");
+			Disbot::getLogger()->error("CONNECT_SOCKET", array($errno, $errstr));
+			die("Could not connect to socket!");
 		}
 		Disbot::getLogger()->info("CREATE_SOCKET");
 	}
