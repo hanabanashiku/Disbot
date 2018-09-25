@@ -7,11 +7,9 @@
  */
 
 namespace Disbot\Server;
-
 use Disbot\Disbot;
-use Disbot\Handlers;
+use function Disbot\Handlers\receiveSocketMessage;
 use Katzgrau\KLogger\Logger;
-
 
 class Gateway {
 	const VERSION = 6; // The Discord gateway version to request
@@ -77,7 +75,7 @@ class Gateway {
 			Disbot::getLogger()->error('GATEWAY_URL', array(curl_error($ch), $response));
 			die("Could not retrieve Gateway socket URL");
 		}
-		$this->address = $response["url"] . "?v=".$this::VERSION."&encoding=".$this::ENCODING;
+		$this->address = self::formatGatewayUrl($response["url"]);
 		Disbot::getLogger()->info("GATEWAY_URL", array($this->address));
 	}
 
@@ -116,7 +114,7 @@ class Gateway {
 
 			$data = fread($this->socket, $this::MAX_LENGTH);
 			if(Disbot::isVerbose()) Disbot::getLogger()->debug("SOCKET_RECEIVE", $data);
-			Handlers\receiveSocketMessage($data);
+			receiveSocketMessage($data);
 		}
 		return true;
 	}
@@ -126,10 +124,10 @@ class Gateway {
 		$this->getGatewayUrl();
 
 		// create and connect to our socket
-		$this->socket = stream_socket_client($this->address, $errno, $errstr);
+		$this->socket = stream_socket_client($this->address, $errno, $errstr, 5, STREAM_CLIENT_CONNECT, stream_context_create());
 		if(!$this->socket){
 			Disbot::getLogger()->error("CONNECT_SOCKET", array($errno, $errstr));
-			die("Could not connect to socket!");
+			die("Could not connect to socket!\n");
 		}
 		Disbot::getLogger()->info("CREATE_SOCKET");
 	}
@@ -182,7 +180,7 @@ class Gateway {
 	 */
 	private function sendRaw($payload){
 		if(is_null($this->socket)) return false;
-		$res = socket_write($this->socket, $payload);
+		$res = fwrite($this->socket, $payload);
 		if(!$res){
 			Disbot::getLogger()->error("SOCKET_SEND", array($payload, socket_strerror(socket_last_error($this->socket))));
 			return false;
@@ -244,6 +242,25 @@ class Gateway {
 	public function endSession(){
 		$this->endSession = true;
 	}
+
+	private static function formatGatewayUrl($url){
+	    $parts = parse_url($url);
+
+	    switch($parts["scheme"]){
+            case 'wss':
+                $parts["scheme"] = 'ssl';
+                break;
+            case 'ws':
+                $parts["scheme"] = 'tcp';
+                break;
+            default:
+                Disbot::getLogger()->error("GATEWAY_URL", array("Invalid Scheme", $parts["scheme"], $url));
+                die("Could not connect! Invalid URL received.\n");
+        }
+
+        $parts["port"] = ($parts["scheme"] == "ssl") ? 443 : 80;
+	    return $parts["scheme"].'://'.$parts["host"].':'.$parts["port"];
+    }
 
 }
 
