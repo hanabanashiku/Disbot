@@ -25,7 +25,7 @@ class User {
 		$this->username = $obj["username"];
 		$this->discriminator = $obj["discriminator"];
 		$this->bot = $obj["bot"];
-		$this->locale = $obj["locale"];
+		$this->locale = array_key_exists('locale', $obj) ? $obj["locale"] : "en-US";
 	}
 
 	public function update($obj){
@@ -33,7 +33,7 @@ class User {
 		$this->username = $obj["username"];
 		$this->discriminator = $obj["discriminator"];
 		$this->bot = $obj["bot"];
-		$this->locale = $obj["locale"];
+        $this->locale = array_key_exists('locale', $obj) ? $obj["locale"] : "en-US";
 	}
 
 	/**

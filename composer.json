@@ -13,7 +13,8 @@
     "katzgrau/klogger": "dev-master",
     "ext-sockets": "*",
     "ext-curl": "*",
-    "ext-json": "*"
+    "ext-json": "*",
+    "amphp/websocket": "dev-master"
   },
   "autoload": {
     "psr-4": {

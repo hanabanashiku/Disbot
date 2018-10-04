@@ -15,7 +15,7 @@ array_shift($argv);
 switch(strtolower($argv[0])){
 
 	case "start":
-		$v = (defined($argv[1]) && strtolower($argv[1]) == "--verbose" || strtolower($argv[1]) == "-v");
+		$v = (sizeof($argv) > 0 && strtolower($argv[1]) == "--verbose" || strtolower($argv[1]) == "-v");
 		Disbot::start($v);
 		break;
 

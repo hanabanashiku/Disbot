@@ -7,9 +7,13 @@
  */
 
 namespace Disbot\Server;
+use Amp\Websocket\ClosedException;
 use Disbot\Disbot;
 use function Disbot\Handlers\receiveSocketMessage;
+use Exception;
 use Katzgrau\KLogger\Logger;
+use Amp\Websocket;
+use Amp\Loop;
 
 class Gateway {
 	const VERSION = 6; // The Discord gateway version to request
@@ -29,7 +33,7 @@ class Gateway {
 	private $endSession; // terminate the session?
 	private $interval;  // the interval between heartbeats, in seconds
 	private $s = null;  // the last heartbeat number
-	private $timer = 0; // timestamp of last heartbeat
+	private $timer = false; // timestamp of last heartbeat, or false if we have not identified
 	private $user;      // The bot itself
 	private $ack;       // Are we waiting for a heartbeat ACK?
 
@@ -75,62 +79,44 @@ class Gateway {
 			Disbot::getLogger()->error('GATEWAY_URL', array(curl_error($ch), $response));
 			die("Could not retrieve Gateway socket URL");
 		}
-		$this->address = self::formatGatewayUrl($response["url"]);
+		$this->address = $response["url"];
 		Disbot::getLogger()->info("GATEWAY_URL", array($this->address));
 	}
 
-	/**
-	 * Signals for the client to create a socket and begin communicating with the gateway.
-	 * @return true on successful close, false if the client should resume.
-	 */
-	public function listen() {
-		if (is_null($this->token)) {
-			Disbot::getLogger()->error("NULL_TOKEN");
-			print("To start the server, a valid token must be supplied. Set the token by running `disbot set token.` See help for more information\n");
-			exit(2);
-		}
+	public function listen(){
+	    if(is_null($this->token)){
+	        Disbot::getLogger()->error("NULL_TOKEN");
+            print("To start the server, a valid token must be supplied. Set the token by running `disbot set token.` See help for more information\n");
+            exit(2);
+        }
 
-		// initiate the connection
-		$this->connect();
+	    Disbot::getLogger()->info("BEGIN_LISTEN");
 
-		Disbot::getLogger()->info("BEGIN_LISTEN");
+	    Loop::run(function(){
+	        $this->getGatewayUrl();
+	        $this->socket = yield Websocket\connect($this->address);
 
-		// lets start our main loop
-		while(true) {
-			if($this->endSession){
-				socket_close($this->socket);
-				return true;
-			}
+	        while(true) {
+                if ($this->endSession) {
+                    $this->socket->close();
+                    exit(0);
+                }
 
-			// we need to send a heartbeat
-			if(time() >= $this->timer + $this->interval)
-				$this->sendHeartbeat();
+                if ($this->timer != false && time() >= $this->timer + $this->interval)
+                    yield $this->sendHeartbeat();
 
-			// the
-			else if($this->ack != false && time() > $this->ack + 2){
-				socket_close($this->socket);
-				return false;
-			}
+                else if ($this->ack != false && time() > $this->ack + 2) {
+                    $this->socket->close();
+                    Disbot::getLogger()->notice("CONNECTION_TIMEOUT");
+                }
+                    $data = yield $this->socket->receive();
+                    receiveSocketMessage(yield $data->buffer());
 
-			$data = fread($this->socket, $this::MAX_LENGTH);
-			if(Disbot::isVerbose()) Disbot::getLogger()->debug("SOCKET_RECEIVE", $data);
-			receiveSocketMessage($data);
-		}
-		return true;
-	}
+            }
 
-	private function connect(){
-		// fetch our URL from the server (can change.. don't cache!)
-		$this->getGatewayUrl();
+        });
+    }
 
-		// create and connect to our socket
-		$this->socket = stream_socket_client($this->address, $errno, $errstr, 5, STREAM_CLIENT_CONNECT, stream_context_create());
-		if(!$this->socket){
-			Disbot::getLogger()->error("CONNECT_SOCKET", array($errno, $errstr));
-			die("Could not connect to socket!\n");
-		}
-		Disbot::getLogger()->info("CREATE_SOCKET");
-	}
 
 	/**
 	 * Sends an OP2 Identify to the gateway. Should only be called after receiving OP10 Hello.
@@ -138,12 +124,15 @@ class Gateway {
 	 */
 	public function identify(){
 		$msg = array(
-			"token" => Disbot::getSettings()->getToken(),
-			"properties" => array(
-				"os" => PHP_OS,
-				"browser" => "disbot",
-				"device" => "disbot"
-			)
+		    "op" => IDENTIFY,
+			"d" => array(
+                "token" => Disbot::getSettings()->getToken(),
+                "properties" => array(
+                    "os" => PHP_OS,
+                    "browser" => "disbot",
+                    "device" => "disbot"
+                )
+            )
 		);
 		Disbot::getLogger()->info("IDENTIFY_SEND");
 		return $this->sendRaw(json_encode($msg));
@@ -180,9 +169,12 @@ class Gateway {
 	 */
 	private function sendRaw($payload){
 		if(is_null($this->socket)) return false;
-		$res = fwrite($this->socket, $payload);
-		if(!$res){
-			Disbot::getLogger()->error("SOCKET_SEND", array($payload, socket_strerror(socket_last_error($this->socket))));
+		try{
+		    $this->socket->send($payload);
+		    Disbot::getLogger()->info("SOCKET_SEND", array($payload));
+        }
+		catch(ClosedException $e){
+			Disbot::getLogger()->error("SOCKET_SEND", array($payload, $e));
 			return false;
 		}
 		return true;
@@ -196,6 +188,7 @@ class Gateway {
 	public function setHeartbeatInterval($int){
 		Disbot::getLogger()->info("HELLO_RECEIVE HEARTBEAT INTERVAL " . $int);
 		$this->interval = ($int / 1000);
+		$this->timer = time();
 		return $this;
 	}
 
@@ -242,25 +235,6 @@ class Gateway {
 	public function endSession(){
 		$this->endSession = true;
 	}
-
-	private static function formatGatewayUrl($url){
-	    $parts = parse_url($url);
-
-	    switch($parts["scheme"]){
-            case 'wss':
-                $parts["scheme"] = 'ssl';
-                break;
-            case 'ws':
-                $parts["scheme"] = 'tcp';
-                break;
-            default:
-                Disbot::getLogger()->error("GATEWAY_URL", array("Invalid Scheme", $parts["scheme"], $url));
-                die("Could not connect! Invalid URL received.\n");
-        }
-
-        $parts["port"] = ($parts["scheme"] == "ssl") ? 443 : 80;
-	    return $parts["scheme"].'://'.$parts["host"].':'.$parts["port"];
-    }
 
 }
 

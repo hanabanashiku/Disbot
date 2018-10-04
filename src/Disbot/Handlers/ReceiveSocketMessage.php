@@ -9,13 +9,16 @@
 namespace Disbot\Handlers;
 
 use Disbot\Disbot;
+use Disbot\Server\User;
 
 /**
  * Handle receiving a message from the gateway.
  * @param $message string The JSON-encoded message.
  */
 function receiveSocketMessage($message){
+    if(Disbot::isVerbose()) Disbot::getLogger()->info("RECEIVE_MESSAGE", array(time(), $message));
 	$message = json_decode($message, true);
+    $content = (array_key_exists('d', $message)) ? $message["d"] : null;
 
 	// we received an error code
 	if(array_key_exists("code", $message)){
@@ -26,16 +29,16 @@ function receiveSocketMessage($message){
 	}
 
 	switch($message["op"]){
-		case DISPATCH:
+        case DISPATCH:
 			switch(strtolower($message["t"])){
 				case "ready":
-					receiveReady($message);
+					receiveReady($content);
 					break;
 			}
 			break;
 
 		case HELLO:
-			receiveHello($message["heartbeat_interval"]);
+			receiveHello($content["heartbeat_interval"]);
 			break;
 
 		case HEARTBEAT_ACK:
@@ -48,4 +51,10 @@ function receiveSocketMessage($message){
 function receiveHello($interval){
 	Disbot::getGateway()->setHeartbeatInterval($interval);
 	Disbot::getGateway()->identify();
+}
+
+function receiveReady($message){
+    Disbot::setSelf(new User($message["user"]));
+    Disbot::getGateway()->setSessionId($message["session_id"]);
+    Disbot::getLogger()->debug("CLIENT_READY", $message["_trace"]);
 }
