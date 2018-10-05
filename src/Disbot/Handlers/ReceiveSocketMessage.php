@@ -56,5 +56,6 @@ function receiveHello($interval){
 function receiveReady($message){
     Disbot::setSelf(new User($message["user"]));
     Disbot::getGateway()->setSessionId($message["session_id"]);
+    Disbot::getGateway()->setTimer();
     Disbot::getLogger()->debug("CLIENT_READY", $message["_trace"]);
 }

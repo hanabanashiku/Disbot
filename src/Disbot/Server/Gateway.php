@@ -7,6 +7,7 @@
  */
 
 namespace Disbot\Server;
+use Amp\Socket\ClientConnectContext;
 use Amp\Websocket\ClosedException;
 use Disbot\Disbot;
 use function Disbot\Handlers\receiveSocketMessage;
@@ -92,29 +93,40 @@ class Gateway {
 
 	    Disbot::getLogger()->info("BEGIN_LISTEN");
 
-	    Loop::run(function(){
-	        $this->getGatewayUrl();
-	        $this->socket = yield Websocket\connect($this->address);
+	    try{
+            Loop::run(function(){
+                $this->getGatewayUrl();
+                $context = new ClientConnectContext();
+                $context = $context->withConnectTimeout(4525);
+                $this->socket = yield Websocket\connect($this->address, $context);
 
-	        while(true) {
-                if ($this->endSession) {
-                    $this->socket->close();
-                    exit(0);
-                }
+                while(true) {
+                    print("loop\n");
+                    if ($this->endSession) {
+                        $this->socket->close();
+                        exit(0);
+                    }
 
-                if ($this->timer != false && time() >= $this->timer + $this->interval)
-                    yield $this->sendHeartbeat();
+                    if ($this->timer != false && time() >= $this->timer + $this->interval)
+                        yield $this->sendHeartbeat();
 
-                else if ($this->ack != false && time() > $this->ack + 2) {
-                    $this->socket->close();
-                    Disbot::getLogger()->notice("CONNECTION_TIMEOUT");
-                }
+                    else if ($this->ack != false && time() > $this->ack + 2) {
+                        $this->socket->close();
+                        Disbot::getLogger()->notice("CONNECTION_TIMEOUT");
+                    }
                     $data = yield $this->socket->receive();
-                    receiveSocketMessage(yield $data->buffer());
+                    if($data)
+                        receiveSocketMessage(yield $data->buffer());
 
-            }
+                }
 
-        });
+            });
+        }
+        catch(ClosedException $e){
+	        Disbot::getLogger()->error("SOCKET_CLOSED", array($e));
+	        die("Socket Connection closed");
+        }
+
     }
 
 
@@ -143,7 +155,7 @@ class Gateway {
 	 * @return true on success
 	 */
 	public function sendHeartbeat() {
-		$this->timer = time(); // update timestamp
+		$this->setTimer(); // update timestamp
 		$this->ack = time();   // waiting for an ACK
 		return $this->sendPayload(HEARTBEAT, $this->s);
 	}
@@ -170,14 +182,14 @@ class Gateway {
 	private function sendRaw($payload){
 		if(is_null($this->socket)) return false;
 		try{
-		    $this->socket->send($payload);
-		    Disbot::getLogger()->info("SOCKET_SEND", array($payload));
+            Disbot::getLogger()->info("SOCKET_SEND", array($payload));
+		    return $this->socket->send($payload);
         }
-		catch(ClosedException $e){
+		catch(Websocket\WebSocketException $e){
 			Disbot::getLogger()->error("SOCKET_SEND", array($payload, $e));
 			return false;
 		}
-		return true;
+
 	}
 
 	/**
@@ -188,7 +200,6 @@ class Gateway {
 	public function setHeartbeatInterval($int){
 		Disbot::getLogger()->info("HELLO_RECEIVE HEARTBEAT INTERVAL " . $int);
 		$this->interval = ($int / 1000);
-		$this->timer = time();
 		return $this;
 	}
 
@@ -216,6 +227,10 @@ class Gateway {
 		$this->s = $s;
 		return $this;
 	}
+
+	public function setTimer(){
+	    $this->timer = time();
+    }
 
 	/**
 	 * @return Logger The logger instance
